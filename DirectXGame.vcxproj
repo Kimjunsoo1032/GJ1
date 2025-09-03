@@ -108,7 +108,6 @@
   <ItemGroup>
     <ClCompile Include="CameraController.cpp" />
     <ClCompile Include="ClearScene.cpp" />
-    <ClCompile Include="DeathParticles.cpp" />
     <ClCompile Include="Fade.cpp" />
     <ClCompile Include="GameScene.cpp" />
     <ClCompile Include="main.cpp" />
@@ -196,7 +195,6 @@
   <ItemGroup>
     <ClInclude Include="CameraController.h" />
     <ClInclude Include="ClearScene.h" />
-    <ClInclude Include="DeathParticles.h" />
     <ClInclude Include="Fade.h" />
     <ClInclude Include="GameScene.h" />
     <ClInclude Include="MapChipField.h" />

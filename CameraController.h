@@ -1,7 +1,6 @@
 #pragma once
 #include "KamataEngine.h"
 
-
 class Player;
 class CameraController {
 

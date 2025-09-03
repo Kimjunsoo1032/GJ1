@@ -76,3 +76,8 @@ MapChipField::Rect MapChipField::GetRectByIndex(uint32_t xIndex, uint32_t yIndex
 	rect.bottom = center.y - kBlockHeight / 2.0f;
 	return rect;
 }
+void MapChipField::SetMapChipTypeByIndex(uint32_t xIndex, uint32_t yIndex, MapChipType type) {
+	if (xIndex >= kNumBlockHorizontal || yIndex >= kNumBlockVirtical)
+		return;
+	mapChipData_.data[yIndex][xIndex] = type;
+}

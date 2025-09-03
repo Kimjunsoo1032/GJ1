@@ -55,6 +55,7 @@ void GameScene::Initialize() {
 	model_ = Model::Create();
 	modelPlayer_ = Model::CreateFromOBJ("player");
 	modelBlock_ = Model::CreateFromOBJ("block");
+	modelBlockRed_ = Model::CreateFromOBJ("block_red");
 	modelDeathParticles_ = Model::CreateFromOBJ("deathParticle");
 	assert(model_);
 
@@ -73,6 +74,13 @@ void GameScene::Initialize() {
 	mapChipField_ = new MapChipField();
 	mapChipField_->LoadMapChipCsv("Resources/blocks.csv");
 	GenerateBlocks();
+	const uint32_t H = mapChipField_->GetNumBlockVirtical();
+	const uint32_t W = mapChipField_->GetNumBlockHorizontal();
+
+	stepped_.assign(H, std::vector<bool>(W, false));
+	falling_.assign(H, std::vector<bool>(W, false));
+	fallVel_.assign(H, std::vector<float>(W, 0.0f));
+	fallDelay_.assign(H, std::vector<float>(W, 0.0f));
 
 	Vector3 playerPosition = mapChipField_->GetMapChipPositionByIndex(1, 18);
 	player_->Initialize(modelPlayer_, &camera_, playerPosition);
@@ -98,16 +106,16 @@ void GameScene::Initialize() {
 	struct Quad {
 		uint32_t x0, y0, x1, y1;
 	};
-	// 맵 중앙 좌표를 대략적으로 사용
-	uint32_t H = mapChipField_->GetNumBlockVirtical();
-	uint32_t W = mapChipField_->GetNumBlockHorizontal();
-	uint32_t midY = H / 2;
-	uint32_t midX = W / 2;
+	uint32_t mapH = mapChipField_->GetNumBlockVirtical();  
+	uint32_t mapW = mapChipField_->GetNumBlockHorizontal();
+
+	uint32_t midY = mapH / 2;
+	uint32_t midX = mapW / 2;
 	std::vector<Quad> quads = {
 	    {1,        1,        midX - 2, midY - 2}, // 좌상
-	    {midX + 1, 1,        W - 2,    midY - 2}, // 우상
-	    {1,        midY + 1, midX - 2, H - 2   }, // 좌하
-	    {midX + 1, midY + 1, W - 2,    H - 2   }  // 우하
+	    {midX + 1, 1,        mapW - 2, midY - 2}, // 우상
+	    {1,        midY + 1, midX - 2, mapH - 2}, // 좌하
+	    {midX + 1, midY + 1, mapW - 2, mapH - 2}  // 우하
 	};
 
 	Vector3 bottomLeftPos = portals_[2].worldPos; 
@@ -125,12 +133,11 @@ void GameScene::Initialize() {
 	fade_->Start(Fade::Status::FadeIn, 1.0f);
 }
 void GameScene::Update() {
+
 	switch (phase_) {
 	case Phase::kPlay:
 		break;
 	case Phase::kDeath:
-		if (deathParticles_)
-			deathParticles_->Update();
 		break;
 	case Phase::kFadeIn:
 		if (fade_) {
@@ -148,6 +155,38 @@ void GameScene::Update() {
 		break;
 	}
 
+	constexpr float kDeltaTime = 1.0f / 60.0f; 
+	constexpr float kBlockGravity = 0.02f;   
+	constexpr float kDespawnY = -20.0f;       
+
+	for (uint32_t z = 0; z < worldTransformBlocks_.size(); ++z) {
+		for (uint32_t x = 0; x < worldTransformBlocks_[z].size(); ++x) {
+			WorldTransform* wt = worldTransformBlocks_[z][x];
+			if (!wt)
+				continue;
+			if (z < fallDelay_.size() && x < fallDelay_[z].size() && fallDelay_[z][x] > 0.0f) {
+				fallDelay_[z][x] -= kDeltaTime;
+				if (fallDelay_[z][x] <= 0.0f && z < falling_.size() && x < falling_[z].size()) {
+					falling_[z][x] = true;
+					if (z < fallVel_.size() && x < fallVel_[z].size())
+						fallVel_[z][x] = 0.0f;
+					mapChipField_->SetMapChipTypeByIndex(x, z, MapChipType::kBlank);
+				}
+			}
+
+			if (z < falling_.size() && x < falling_[z].size() && falling_[z][x]) {
+				if (z < fallVel_.size() && x < fallVel_[z].size()) {
+					fallVel_[z][x] -= kBlockGravity;  
+					wt->translation_.y += fallVel_[z][x];
+				}
+				if (wt->translation_.y < kDespawnY) {
+					delete wt;
+					worldTransformBlocks_[z][x] = nullptr;
+				}
+			}
+		}
+	}
+
 	for (auto& line : worldTransformBlocks_) {
 		for (WorldTransform* wt : line) {
 			if (!wt)
@@ -156,8 +195,35 @@ void GameScene::Update() {
 			wt->TransferMatrix();
 		}
 	}
-
 	player_->Update();
+
+	{
+		const Vector3 pos = player_->GetWorldPosition();
+		const int ix = static_cast<int>(std::floor(pos.x + 0.5f));
+		const int iz = static_cast<int>(std::floor(pos.z + 0.5f));
+
+		const uint32_t H = mapChipField_->GetNumBlockVirtical();
+		const uint32_t W = mapChipField_->GetNumBlockHorizontal();
+
+		if (ix >= 0 && ix < static_cast<int>(W) && iz >= 0 && iz < static_cast<int>(H)) {
+			if (mapChipField_->GetMapChipTypeByIndex((uint32_t)ix, (uint32_t)iz) == MapChipType::kPlatform) {
+
+				constexpr float kPlatformTopY = 0.05f;
+				constexpr float kEps = 0.02f;
+				const bool onPlatformHeight = std::abs((pos.y - Player::kHeight * 0.5f) - kPlatformTopY) < kEps;
+
+				if (player_->onGround_ || onPlatformHeight) {
+					if (iz < stepped_.size() && ix < static_cast<int>(stepped_[iz].size()))
+						stepped_[iz][ix] = true;
+					if (iz < fallDelay_.size() && ix < static_cast<int>(fallDelay_[iz].size()) && iz < falling_.size() && ix < static_cast<int>(falling_[iz].size())) {
+						if (fallDelay_[iz][ix] <= 0.0f && !falling_[iz][ix]) {
+							fallDelay_[iz][ix] = 0.4f;
+						}
+					}
+				}
+			}
+		}
+	}
 
 	const Vector3 p = player_->GetWorldPosition();
 
@@ -203,8 +269,6 @@ void GameScene::Update() {
 
 	if (skydome_)
 		skydome_->Update();
-	if (deathParticles_)
-		deathParticles_->Update();
 	if (fade_)
 		fade_->Update();
 
@@ -219,33 +283,19 @@ void GameScene::Draw() {
 	}
 	skydome_->Draw();
 
-	for (auto& line : worldTransformBlocks_) {
-		for (WorldTransform* wt : line) {
+for (uint32_t z = 0; z < worldTransformBlocks_.size(); ++z) {
+		for (uint32_t x = 0; x < worldTransformBlocks_[z].size(); ++x) {
+			KamataEngine::WorldTransform* wt = worldTransformBlocks_[z][x];
 			if (!wt)
 				continue;
-			modelBlock_->Draw(*wt, camera_);
+
+			const bool stepped = (z < stepped_.size() && x < stepped_[z].size()) ? stepped_[z][x] : false;
+			KamataEngine::Model* useModel = (stepped && modelBlockRed_) ? modelBlockRed_ : modelBlock_;
+
+			useModel->Draw(*wt, camera_);
 		}
-	}
-	if (deathParticles_) {
-		deathParticles_->Draw();
 	}
 	Model::PostDraw();
-
-	Sprite::PreDraw(dxCommon->GetCommandList());
-
-
-	for (auto& p : portals_) {
-		if (!p.sprite)
-			continue;
-		float sx = 0, sy = 0;
-		if (WorldToScreen(p.worldPos, camera_, sx, sy)) {
-			p.sprite->SetPosition({sx - 64.0f, sy - 64.0f});
-			p.sprite->Draw();
-		}
-	}
-
-	Sprite::PostDraw();
-
 	fade_->Draw();
 }
 void GameScene::GenerateBlocks() {
@@ -258,8 +308,8 @@ void GameScene::GenerateBlocks() {
 		worldTransformBlocks_.clear();
 	}
 
-	const uint32_t numBlockVirtical = mapChipField_->GetNumBlockVirtical();     // → Z 길이
-	const uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal(); // → X 길이
+	const uint32_t numBlockVirtical = mapChipField_->GetNumBlockVirtical(); 
+	const uint32_t numBlockHorizontal = mapChipField_->GetNumBlockHorizontal();
 
 	worldTransformBlocks_.resize(numBlockVirtical);
 	for (uint32_t z = 0; z < numBlockVirtical; ++z) {
@@ -289,24 +339,9 @@ void GameScene::GenerateBlocks() {
 void GameScene::ChangePhase() {
 	switch (phase_) {
 	case Phase::kPlay:
-		if (player_->IsDead()) {
-			phase_ = Phase::kDeath;
-			const Vector3& deathParticlesPosition = player_->GetWorldPosition();
-			if (deathParticles_) {
-				delete deathParticles_;
-				deathParticles_ = nullptr;
-			}
-			deathParticles_ = new DeathParticles;
-			deathParticles_->Initialize(modelDeathParticles_, &camera_, deathParticlesPosition);
-		}
 		break;
 
 	case Phase::kDeath:
-		deathParticles_->Update();
-		if (deathParticles_ && deathParticles_->IsFinished()) {
-			phase_ = Phase::kFadeOut;
-			fade_->Start(Fade::Status::FadeOut, 1.0f);
-		}
 		break;
 	}
 }

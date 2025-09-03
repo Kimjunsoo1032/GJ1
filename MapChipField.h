@@ -28,7 +28,7 @@ public:
 		uint32_t yIndex;
 	};
 	MapChipField::IndexSet GetMapChipIndexSetByPosition(const KamataEngine::Vector3& position);
-	
+	void SetMapChipTypeByIndex(uint32_t xIndex, uint32_t yIndex, MapChipType type);
 	struct Rect {
 		float right;
 		float left;
