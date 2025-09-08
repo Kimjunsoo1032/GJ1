@@ -78,10 +78,7 @@ void Player::InputMove() {
 		} else {
 			velocity_.x *= (1.0f - kAttenuation);
 		}
-		if (Input::GetInstance()->PushKey(DIK_SPACE)) {
-			velocity_.y = kJumpAcceleration;
-			onGround_ = false;
-		}
+
 	} else {
 		velocity_ += Vector3(0, -kGravityAcceleration, 0);
 		velocity_.y = std::max(velocity_.y, -kLimitFallSpeed);

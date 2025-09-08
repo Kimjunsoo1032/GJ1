@@ -166,8 +166,11 @@ void GameScene::Update() {
 	}
 
 	player_->Update();
-	gameTimer_->Update(uint32_t number);
-
+	gameTimer_->Update(number/60,bestNumber/60);
+	number++;
+	if (bestNumber < number) {
+		bestNumber = number;
+	}
 	const Vector3 pos = player_->GetWorldPosition();
 	const int curIx = static_cast<int>(std::floor(pos.x + 0.5f));
 	const int curIz = static_cast<int>(std::floor(pos.z + 0.5f));

@@ -13,7 +13,7 @@ void StartBGMOnce() {
 	if (bgmStarted)
 		return;
 	auto* audio = Audio::GetInstance();
-	bgmSoundHandle = audio->LoadWave("fanfare.wav"); 
+	bgmSoundHandle = audio->LoadWave("fanfare.wav");
 	bgmVoiceHandle = audio->PlayWave(bgmSoundHandle, true);
 	bgmStarted = true;
 }
@@ -26,7 +26,9 @@ void StopBGM() {
 } // namespace
 GameScene* gameScene = nullptr;
 TitleScene* titleScene = nullptr;
-ClearScene* clearScene = nullptr; 
+ClearScene* clearScene = nullptr;
+
+uint32_t bestNumber = 0;
 
 enum class Scene { kUnknown = 0, kTitle, kGame, kClear };
 
@@ -41,18 +43,21 @@ void ChangeScene() {
 			titleScene = nullptr;
 			gameScene = new GameScene();
 			gameScene->Initialize();
+			gameScene->SetBestNumber(bestNumber);
 		}
 		break;
 
 	case Scene::kGame:
 		if (gameScene->IsFinished()) {
-			if (gameScene->IsCleared()) { 
+			if (gameScene->IsCleared()) {
+				bestNumber = gameScene->GetBestNumber();
 				scene = Scene::kClear;
 				delete gameScene;
 				gameScene = nullptr;
 				clearScene = new ClearScene();
 				clearScene->Initialize();
-			} else { 
+			} else {
+				bestNumber = gameScene->GetBestNumber();
 				scene = Scene::kTitle;
 				delete gameScene;
 				gameScene = nullptr;
@@ -84,7 +89,7 @@ void UpdateScene() {
 		break;
 	case Scene::kClear:
 		clearScene->Update();
-		break; 
+		break;
 	}
 }
 
@@ -106,7 +111,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	KamataEngine::Initialize(L"6042_キム_タマイ_ナマイ_GJ1");
 
 	DirectXCommon* dxCommon = DirectXCommon::GetInstance();
-
 
 	StartBGMOnce();
 
