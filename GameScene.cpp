@@ -166,6 +166,7 @@ void GameScene::Update() {
 	}
 
 	player_->Update();
+	gameTimer_->Update(uint32_t number);
 
 	const Vector3 pos = player_->GetWorldPosition();
 	const int curIx = static_cast<int>(std::floor(pos.x + 0.5f));
