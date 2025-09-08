@@ -62,6 +62,9 @@ void GameScene::Initialize() {
 	worldTransform_.Initialize();
 	camera_.Initialize();
 
+	gameTimer_ = new GameTimer();
+
+	gameTimer_->Initialize();
 
 	player_ = new Player();
 
@@ -121,6 +124,14 @@ void GameScene::Initialize() {
 	Vector3 bottomLeftPos = portals_[2].worldPos; 
 	Vector3 topLeftPos = portals_[0].worldPos;   
 
+	{
+		Vector3 spawn = playerPosition;
+		spawn.y = Player::kHeight * 0.5f + 0.05f;
+		player_->SetPosition(spawn);
+		player_->velocity_ = {};
+		player_->onGround_ = true;
+	}
+
 
 	Vector3 targetTopLeft = topLeftPos;
 	targetTopLeft.x -= 2.0f; 
@@ -133,7 +144,6 @@ void GameScene::Initialize() {
 	fade_->Start(Fade::Status::FadeIn, 1.0f);
 }
 void GameScene::Update() {
-
 	switch (phase_) {
 	case Phase::kPlay:
 		break;
@@ -155,33 +165,89 @@ void GameScene::Update() {
 		break;
 	}
 
-	constexpr float kDeltaTime = 1.0f / 60.0f; 
-	constexpr float kBlockGravity = 0.02f;   
-	constexpr float kDespawnY = -20.0f;       
+	player_->Update();
+
+	const Vector3 pos = player_->GetWorldPosition();
+	const int curIx = static_cast<int>(std::floor(pos.x + 0.5f));
+	const int curIz = static_cast<int>(std::floor(pos.z + 0.5f));
+
+	const uint32_t H = mapChipField_->GetNumBlockVirtical();
+	const uint32_t W = mapChipField_->GetNumBlockHorizontal();
+
+if (curIx >= 0 && curIx < static_cast<int>(W) && curIz >= 0 && curIz < static_cast<int>(H)) {
+		MapChipType under = mapChipField_->GetMapChipTypeByIndex((uint32_t)curIx, (uint32_t)curIz);
+
+		bool fallingHere = false;
+		if (curIz < static_cast<int>(falling_.size()) && curIx < static_cast<int>(falling_[curIz].size())) {
+			fallingHere = falling_[curIz][curIx];
+		}
+
+		bool isGround = (under == MapChipType::kBlock) || (under == MapChipType::kPlatform && !fallingHere);
+
+		if (!isGround) {
+			if (player_->onGround_) {
+				player_->onGround_ = false;
+				if (player_->velocity_.y >= 0.0f) {
+					player_->velocity_.y = -0.05f; 
+				}
+			}
+		} else {
+			player_->onGround_ = true;
+		}
+	}
+
+	if (curIx >= 0 && curIx < static_cast<int>(W) && curIz >= 0 && curIz < static_cast<int>(H)) {
+		if (mapChipField_->GetMapChipTypeByIndex((uint32_t)curIx, (uint32_t)curIz) == MapChipType::kPlatform) {
+			constexpr float kPlatformTopY = 0.05f;
+			constexpr float kEps = 0.02f;
+			const bool onPlatformHeight = std::abs((pos.y - Player::kHeight * 0.5f) - kPlatformTopY) < kEps;
+
+			if (player_->onGround_ || onPlatformHeight) {
+				if (curIz < static_cast<int>(stepped_.size()) && curIx < static_cast<int>(stepped_[curIz].size())) {
+					stepped_[curIz][curIx] = true;
+				}
+				if (curIz < static_cast<int>(fallDelay_.size()) && curIx < static_cast<int>(fallDelay_[curIz].size()) && curIz < static_cast<int>(falling_.size()) &&
+				    curIx < static_cast<int>(falling_[curIz].size())) {
+					if (fallDelay_[curIz][curIx] <= 0.0f && !falling_[curIz][curIx]) {
+						fallDelay_[curIz][curIx] = 1.0f; 
+					}
+				}
+			}
+		}
+	}
+
+	
+	constexpr float kDeltaTime = 1.0f / 60.0f;
+	constexpr float kBlockGravity = 0.02f; 
+	constexpr float kDespawnY = -20.0f;    
 
 	for (uint32_t z = 0; z < worldTransformBlocks_.size(); ++z) {
 		for (uint32_t x = 0; x < worldTransformBlocks_[z].size(); ++x) {
 			WorldTransform* wt = worldTransformBlocks_[z][x];
 			if (!wt)
 				continue;
+
 			if (z < fallDelay_.size() && x < fallDelay_[z].size() && fallDelay_[z][x] > 0.0f) {
 				fallDelay_[z][x] -= kDeltaTime;
-				if (fallDelay_[z][x] <= 0.0f && z < falling_.size() && x < falling_[z].size()) {
-					falling_[z][x] = true;
-					if (z < fallVel_.size() && x < fallVel_[z].size())
-						fallVel_[z][x] = 0.0f;
-					mapChipField_->SetMapChipTypeByIndex(x, z, MapChipType::kBlank);
+				if (fallDelay_[z][x] <= 0.0f) {
+					if (z < falling_.size() && x < falling_[z].size() && !falling_[z][x]) {
+						falling_[z][x] = true;
+						if (z < fallVel_.size() && x < fallVel_[z].size()) {
+							fallVel_[z][x] = -0.12f; 
+						}
+						mapChipField_->SetMapChipTypeByIndex(x, z, MapChipType::kBlank);
+					}
 				}
 			}
-
 			if (z < falling_.size() && x < falling_[z].size() && falling_[z][x]) {
 				if (z < fallVel_.size() && x < fallVel_[z].size()) {
-					fallVel_[z][x] -= kBlockGravity;  
+					fallVel_[z][x] -= kBlockGravity;
 					wt->translation_.y += fallVel_[z][x];
 				}
 				if (wt->translation_.y < kDespawnY) {
 					delete wt;
 					worldTransformBlocks_[z][x] = nullptr;
+					continue;
 				}
 			}
 		}
@@ -195,36 +261,8 @@ void GameScene::Update() {
 			wt->TransferMatrix();
 		}
 	}
-	player_->Update();
 
-	{
-		const Vector3 pos = player_->GetWorldPosition();
-		const int ix = static_cast<int>(std::floor(pos.x + 0.5f));
-		const int iz = static_cast<int>(std::floor(pos.z + 0.5f));
-
-		const uint32_t H = mapChipField_->GetNumBlockVirtical();
-		const uint32_t W = mapChipField_->GetNumBlockHorizontal();
-
-		if (ix >= 0 && ix < static_cast<int>(W) && iz >= 0 && iz < static_cast<int>(H)) {
-			if (mapChipField_->GetMapChipTypeByIndex((uint32_t)ix, (uint32_t)iz) == MapChipType::kPlatform) {
-
-				constexpr float kPlatformTopY = 0.05f;
-				constexpr float kEps = 0.02f;
-				const bool onPlatformHeight = std::abs((pos.y - Player::kHeight * 0.5f) - kPlatformTopY) < kEps;
-
-				if (player_->onGround_ || onPlatformHeight) {
-					if (iz < stepped_.size() && ix < static_cast<int>(stepped_[iz].size()))
-						stepped_[iz][ix] = true;
-					if (iz < fallDelay_.size() && ix < static_cast<int>(fallDelay_[iz].size()) && iz < falling_.size() && ix < static_cast<int>(falling_[iz].size())) {
-						if (fallDelay_[iz][ix] <= 0.0f && !falling_[iz][ix]) {
-							fallDelay_[iz][ix] = 0.4f;
-						}
-					}
-				}
-			}
-		}
-	}
-
+	// 8) 카메라 추적
 	const Vector3 p = player_->GetWorldPosition();
 
 	if (!camAnchorInited_) {
@@ -262,6 +300,17 @@ void GameScene::Update() {
 			d += 6.28318531f;
 		return a + d * t;
 	};
+	{
+		const auto pl = player_->GetWorldPosition();
+		if (pl.y < kClearY && phase_ != Phase::kFadeOut) {
+			cleared_ = true; 
+			phase_ = Phase::kFadeOut;
+			if (fade_) {
+				fade_->Start(Fade::Status::FadeOut, 1.0f);
+			}
+		}
+	}
+
 	camera_.rotation_.y = LerpAngle(camera_.rotation_.y, yaw, 0.15f);
 	camera_.rotation_.x = LerpAngle(camera_.rotation_.x, pitch, 0.15f);
 
@@ -296,6 +345,11 @@ for (uint32_t z = 0; z < worldTransformBlocks_.size(); ++z) {
 		}
 	}
 	Model::PostDraw();
+
+	
+	Sprite::PreDraw(dxCommon->GetCommandList());
+	gameTimer_->Draw();
+	Sprite::PostDraw();
 	fade_->Draw();
 }
 void GameScene::GenerateBlocks() {

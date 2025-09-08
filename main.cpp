@@ -103,7 +103,7 @@ void DrawScene() {
 }
 
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
-	KamataEngine::Initialize(L"GC2C_02_キム_ジュンス_AL3");
+	KamataEngine::Initialize(L"6042_キム_タマイ_ナマイ_GJ1");
 
 	DirectXCommon* dxCommon = DirectXCommon::GetInstance();
 

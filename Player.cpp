@@ -27,41 +27,20 @@ void Player::Initialize(Model* model, Camera* camera, const Vector3& position) {
 	worldTransform_.rotation_.y = std::numbers::pi_v<float> / 2.0f;
 }
 void Player::Update() {
-
-	if (turnTimer_ > 0.0f) {
-		turnTimer_ -= 1.0f / 60.0f;
-		float destinationRotationYTable[] = {std::numbers::pi_v<float> / 2.0f, std::numbers::pi_v<float> * 3.0f / 2.0f};
-		float destinationRotationY = destinationRotationYTable[static_cast<uint32_t>(lrDirection_)];
-		worldTransform_.rotation_.y = EaseInOut(destinationRotationY, turnFirstRotationY_, turnTimer_ / kTimeTurn);
-	}
-	const float groundHeight = 1.0f;
-	if (!onGround_) {
-		if (velocity_.y < 0.0f && worldTransform_.translation_.y <= groundHeight) {
-			worldTransform_.translation_.y = groundHeight;
-			velocity_.y = 0.0f;
-			velocity_.x *= (1.0f - kAttenuation);
-			onGround_ = true;
-		}
-	}
-
 	InputMove();
+	CollisionMapInfo info{};
+	info.move = velocity_;
 
-	CollisionMapInfo collisionMapInfo;
+	CheckMapCollision(info);
 
-	collisionMapInfo.move = velocity_;
+	CheckMapMove(info);
 
-	CheckMapCollision(collisionMapInfo);
-	CheckMapMove(collisionMapInfo);
-	CheckMapCeiling(collisionMapInfo);
-	CheckMapLanding(collisionMapInfo);
+	CheckMapCeiling(info);
+	CheckMapLanding(info);
 	CheckPlatformLandingXZ();
-	velocity_.y -= 0.05f;    
-	InputMove();              
-	CheckPlatformLandingXZ();
-	worldTransform_.translation_ += velocity_;
+
 	AnimateTurn();
 	worldTransform_.matWorld_ = MakeAffineMatrix(worldTransform_.scale_, worldTransform_.rotation_, worldTransform_.translation_);
-
 	worldTransform_.TransferMatrix();
 }
 void Player::InputMove() {
@@ -103,7 +82,6 @@ void Player::InputMove() {
 			velocity_.y = kJumpAcceleration;
 			onGround_ = false;
 		}
-
 	} else {
 		velocity_ += Vector3(0, -kGravityAcceleration, 0);
 		velocity_.y = std::max(velocity_.y, -kLimitFallSpeed);

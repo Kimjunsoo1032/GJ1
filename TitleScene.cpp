@@ -4,15 +4,12 @@
 
 using namespace KamataEngine;
 TitleScene::~TitleScene() {
-	delete model_;
 	delete modelPlayer_;
 	delete fade_;
 	delete bgSprite_;
 }
 
 void TitleScene::Initialize() {
-	model_ = Model::CreateFromOBJ("titleFont");
-	modelPlayer_ = Model::CreateFromOBJ("player");
 	camera_.Initialize();
 	worldTransform_.Initialize();
 	worldTransform_.scale_ = {2, 2, 2};
@@ -20,7 +17,7 @@ void TitleScene::Initialize() {
 
 	worldTransformPlayer_.Initialize();
 	worldTransformPlayer_.scale_ = {10, 10, 10};
-	worldTransformPlayer_.translation_ = {0, -8, 0};
+	worldTransformPlayer_.translation_ = {0, -15, 0};
 	worldTransformPlayer_.rotation_.y = std::numbers::pi_v<float>;
 
 	bgTexHandle_ = KamataEngine::TextureManager::Load("titleBackGround.png");
@@ -72,11 +69,6 @@ void TitleScene::Draw() {
 
 
 	dx->ClearDepthBuffer(); 
-
-	Model::PreDraw(dx->GetCommandList());
-	model_->Draw(worldTransform_, camera_);
-	modelPlayer_->Draw(worldTransformPlayer_, camera_);
-	Model::PostDraw();
 
 
 	Sprite::PreDraw(dx->GetCommandList());

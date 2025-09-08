@@ -6,6 +6,7 @@
 #include "Player.h"
 #include "Skydome.h"
 #include <vector>
+#include "GameTimer.h"
 class GameScene {
 
 	KamataEngine::Model* model_ = nullptr;
@@ -52,6 +53,7 @@ class GameScene {
 	bool finished_ = false;
 	Fade* fade_ = nullptr;
 	bool cleared_ = false;
+	static inline const float kClearY = -20.0f;
 
 public:
 	~GameScene();
@@ -65,4 +67,6 @@ public:
 
 	KamataEngine::Vector3 camAnchor_ = {0, 0, 0};
 	bool camAnchorInited_ = false;
+
+	GameTimer *gameTimer_ = nullptr;
 };

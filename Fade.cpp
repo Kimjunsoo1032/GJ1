@@ -39,6 +39,8 @@ void Fade::Draw() {
 	Sprite::PreDraw(dxCommon->GetCommandList());
 	sprite_->Draw();
 	Sprite::PostDraw();
+
+
 }
 void Fade::Start(Status status, float duration) {
 	status_ = status;
